@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <label for="hotkey">Hotkey</label>
+    <select name="hotkey" id="hotkey">
+        <option disabled value="">Loading...</option>
+    </select>
+    <p>Which hotkey will this trigger</p>
+</body>
+
+<script>
+    const hotkey = document.getElementById("hotkey");
+
+    let properties;
+
+    // Handle properties received
+    window.tilepad.onProperties((newProperties) => {
+        properties = newProperties;
+
+        // Request the hotkey options
+        window.tilepad.sendPluginMessage({
+            type: "GET_HOTKEY_OPTIONS"
+        })
+    });
+
+
+    // Handle messages from plugin
+    window.tilepad.onPluginMessage((data) => {
+        switch (data.type) {
+            case "HOTKEY_OPTIONS": {
+                addHotkeyOptions(data.options)
+                break;
+            }
+        }
+    });
+
+    // Request the current properties
+    window.tilepad.requestProperties();
+
+    hotkey.onchange = (event) => onChangeHotkey(event.target.value);
+
+    function onChangeHotkey(value) {
+        if (value === "") {
+            window.tilepad.setProperty("hotkey_id", null);
+        } else {
+            window.tilepad.setProperty("hotkey_id", value);
+        }
+    }
+
+    function addHotkeyOptions(options) {
+        hotkey.innerHTML = "";
+
+        // Add default option
+        {
+            const defaultOption = document.createElement("option");
+            defaultOption.disabled = true;
+            defaultOption.value = "";
+            defaultOption.textContent = "None";
+            defaultOption.selected = true;
+            hotkey.options.add(defaultOption);
+        }
+
+        // Add real options
+        for (const hotkeyOption of options) {
+            const option = document.createElement("option");
+            option.value = hotkeyOption.value;
+            option.textContent = hotkeyOption.label;
+            hotkey.options.add(option);
+        }
+
+        if (properties.hotkey_id) {
+            const hotkeyIndex = getHotkeyOptionIndex(properties.hotkey_id);
+            if (hotkeyIndex !== -1) {
+                hotkey.selectedIndex = hotkeyIndex;
+            }
+        }
+    }
+
+    function getHotkeyOptionIndex(value) {
+        for (let i = 0; i < hotkey.options.length; i++) {
+            let option = hotkey.options.item(i);
+            if (option === null) break;
+            if (option.value !== value) continue;
+            return i;
+        }
+
+        return -1
+    }
+</script>
+
+</html>

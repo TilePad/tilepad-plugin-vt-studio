@@ -1,0 +1,16 @@
+[plugin]
+id = "com.jacobtread.tilepad.vtstudio"
+name = "VTube Studio"
+version = "0.0.1"
+authors = ["Jacobtread"]
+description = "Tilepad VTube studio actions"
+
+[category]
+label = "VT Studio"
+icon = "images/navigation.svg"
+
+[actions.trigger_hotkey]
+label = "Trigger Hotkey"
+icon = "images/switch-folder.svg"
+description = "Trigger a VTStudio hotkey"
+inspector = "ui/trigger-hotkey.html"
