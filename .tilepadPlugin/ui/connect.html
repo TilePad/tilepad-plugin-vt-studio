@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="root" style="display: contents;"></div>
+</body>
+
+<script>
+
+    let currentAction = null;
+
+    function setView(content) {
+        const root = document.getElementById("root");
+        root.innerHTML = "";
+        root.appendChild(content);
+    }
+
+    function createLoadingView(message) {
+        const container = document.createElement("div");
+        const title = document.createElement("h1");
+        title.textContent = "Loading..."
+        const text = document.createElement("p");
+        text.textContent = message;
+
+        container.appendChild(title);
+        container.appendChild(text);
+
+        return container
+    }
+
+    function createDisconnectedView() {
+        const container = document.createElement("div");
+        const title = document.createElement("h1");
+        title.textContent = "Not Connected"
+        const text = document.createElement("p");
+        text.textContent = "Ensure VTube Studio is running and that plugins are enabled"
+
+        container.appendChild(title);
+        container.appendChild(text);
+
+        return container
+    }
+
+    function createAuthorizeView() {
+        const container = document.createElement("div");
+        const title = document.createElement("h1");
+        title.textContent = "Tilepad VTube Studio"
+        const text = document.createElement("p");
+        text.textContent = "You must authorize tilepad to access VTube studio, ensure VTube Studio is running"
+        const button = document.createElement("button");
+        button.textContent = "Authorize"
+        button.onclick = () => {
+            // Set to loading state
+            setView(createLoadingView("Waiting for authorization..."));
+
+            // Request that the plugin authorize
+            window.tilepad.sendPluginMessage({
+                type: "AUTHORIZE"
+            })
+        }
+
+        container.appendChild(title);
+        container.appendChild(text);
+        container.appendChild(button);
+
+        return container
+    }
+
+    // Set initial loading state
+    setView(createLoadingView("Connecting..."));
+
+    // Handle properties received
+    window.tilepad.onProperties((newProperties, ctx) => {
+        properties = newProperties;
+        currentAction = ctx.actionId;
+
+        // Request connection state from the plugin
+        window.tilepad.sendPluginMessage({
+            type: "GET_CONNECTED"
+        })
+    });
+
+
+    // Handle messages from plugin
+    window.tilepad.onPluginMessage((data) => {
+        switch (data.type) {
+            case "CONNECTED": {
+                if (data.connected) {
+                    // Request the current authorization status
+                    window.tilepad.sendPluginMessage({
+                        type: "GET_AUTHORIZED"
+                    })
+
+                    // Set loading view
+                    setView(createLoadingView("Checking authorization..."));
+                } else {
+                    // Show disconnected view
+                    setView(createDisconnectedView());
+                }
+
+                break;
+            }
+
+            case "AUTHORIZED": {
+                if (data.authorized) {
+
+                    switch (currentAction) {
+                        // Show the hotkey configuration UI
+                        case "trigger_hotkey":
+                            window.location.href = "./trigger-hotkey.html";
+                            break;
+                    }
+
+                } else {
+                    // Show authorize view
+                    setView(createAuthorizeView());
+                }
+
+                break;
+            }
+        }
+    });
+
+    // Request the current properties
+    window.tilepad.requestProperties();
+</script>
+
+</html>

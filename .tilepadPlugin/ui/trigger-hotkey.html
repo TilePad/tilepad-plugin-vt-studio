@@ -24,9 +24,9 @@
     window.tilepad.onProperties((newProperties) => {
         properties = newProperties;
 
-        // Request the hotkey options
+        // Request connection state from the plugin
         window.tilepad.sendPluginMessage({
-            type: "GET_HOTKEY_OPTIONS"
+            type: "GET_CONNECTED"
         })
     });
 
@@ -36,6 +36,34 @@
         switch (data.type) {
             case "HOTKEY_OPTIONS": {
                 addHotkeyOptions(data.options)
+                break;
+            }
+
+            case "CONNECTED": {
+                if (!data.connected) {
+                    window.location.href = "./connect.html";
+                    return;
+                }
+
+                // Get authorization status
+                window.tilepad.sendPluginMessage({
+                    type: "GET_AUTHORIZED"
+                })
+
+                break;
+            }
+
+            case "AUTHORIZED": {
+                if (!data.authorized) {
+                    window.location.href = "./connect.html";
+                    return;
+                }
+
+                // Request the hotkey options
+                window.tilepad.sendPluginMessage({
+                    type: "GET_HOTKEY_OPTIONS"
+                })
+
                 break;
             }
         }

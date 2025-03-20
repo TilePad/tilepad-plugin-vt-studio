@@ -1,20 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use state::{VtClientState, VtState, process_client_events};
 use tilepad_plugin_sdk::{
     TilepadPlugin,
     protocol::{DeviceMessageContext, PluginMessageContext},
     socket::{PluginSession, PluginSessionRef},
 };
-use tokio::{sync::Mutex, time::sleep};
-use vtubestudio::{
-    ClientEvent,
-    data::{HotkeyTriggerRequest, HotkeysInCurrentModelRequest, StatisticsRequest},
-};
+use vtubestudio::data::{HotkeyTriggerRequest, HotkeysInCurrentModelRequest, StatisticsRequest};
 
-pub struct VtState {
-    client: Mutex<Option<vtubestudio::Client>>,
-}
+pub mod state;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -22,16 +17,21 @@ pub struct Settings {
     access_token: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageIn {
     GetHotkeyOptions,
+    GetConnected,
+    GetAuthorized,
+    Authorize,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageOut {
     HotkeyOptions { options: Vec<HotkeyOption> },
+    Connected { connected: bool },
+    Authorized { authorized: bool },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -42,10 +42,14 @@ pub struct HotkeyOption {
 
 #[tokio::main]
 async fn main() {
+    // Initialize a new client
+    let (client, events) = vtubestudio::Client::builder().build_tungstenite();
+    let state = VtState::new(client);
+
+    tokio::spawn(process_client_events(state.clone(), events));
+
     TilepadPlugin::builder()
-        .extension(Arc::new(VtState {
-            client: Default::default(),
-        }))
+        .extension(state)
         // Got settings from the plugin server
         .on_settings(on_settings)
         .on_inspector_message(on_inspector_message)
@@ -62,66 +66,20 @@ async fn on_settings(
     settings: serde_json::Value,
 ) {
     let settings: Settings = serde_json::from_value(settings).expect("settings had invalid shape");
+    let state = plugin.extension::<VtState>().expect("plugin state missing");
 
-    let state = plugin
-        .extension::<Arc<VtState>>()
-        .expect("plugin state missing");
+    // Set the active session
+    state.set_plugin_session(session).await;
 
-    let events = {
-        // Check we aren't already connected
-        let mut client_slot = state.client.lock().await;
-        if client_slot.is_some() {
-            return;
+    // Attempt to authenticate the current session
+    if let Some(access_token) = settings.access_token {
+        let current_state = state.get_client_state().await;
+        if !matches!(current_state, VtClientState::Authenticated) {
+            _ = state.authenticate(access_token).await;
         }
+    }
 
-        // Attempt to connect our new client
-        let (client, events) = vtubestudio::Client::builder()
-            .auth_token(settings.access_token)
-            .authentication("Tilepad VT Studio", "Jacobtread", None)
-            .build_tungstenite();
-
-        // Store the current client
-        *client_slot = Some(client);
-        events
-    };
-
-    // Handle background events
-    tokio::spawn({
-        let state = state.clone();
-        let session = session.clone();
-        let mut events = events;
-
-        async move {
-            while let Some(event) = events.next().await {
-                match event {
-                    ClientEvent::Disconnected => loop {
-                        println!("Got event: {:?}", event);
-                        let mut client_lock = { state.client.lock().await };
-                        let client = match client_lock.as_mut() {
-                            Some(value) => value,
-                            None => return,
-                        };
-
-                        // Send a statistics request to attempt to reconnect every 5 seconds of being disconnected
-                        if client.send(&StatisticsRequest {}).await.is_err() {
-                            drop(client_lock);
-                            sleep(Duration::from_secs(5)).await;
-                        } else {
-                            break;
-                        }
-                    },
-                    ClientEvent::NewAuthToken(new_token) => {
-                        // Update token store in settings
-                        // session.setSettings()
-                    }
-                    _ => {
-                        // Other events, such as connections/disconnections, API events, etc
-                        println!("Got event: {:?}", event);
-                    }
-                }
-            }
-        }
-    });
+    _ = state.send_message(&StatisticsRequest {}).await;
 }
 
 async fn on_inspector_message(
@@ -135,8 +93,42 @@ async fn on_inspector_message(
         Err(_) => return,
     };
 
+    println!("Got inspector message: {msg:?}");
+
+    let state = plugin.extension::<VtState>().expect("plugin state missing");
+    state.set_inspector_ctx(ctx.clone()).await;
+
     match msg {
         InspectorMessageIn::GetHotkeyOptions => on_get_hotkey_options(plugin, session, ctx).await,
+        InspectorMessageIn::GetConnected => {
+            let current_state = state.get_client_state().await;
+
+            // Send the available options to the inspector
+            session
+                .send_to_inspector(
+                    ctx,
+                    InspectorMessageOut::Connected {
+                        connected: !matches!(current_state, VtClientState::Disconnected),
+                    },
+                )
+                .unwrap();
+        }
+        InspectorMessageIn::GetAuthorized => {
+            let current_state = state.get_client_state().await;
+
+            // Send the available options to the inspector
+            session
+                .send_to_inspector(
+                    ctx,
+                    InspectorMessageOut::Authorized {
+                        authorized: matches!(current_state, VtClientState::Authenticated),
+                    },
+                )
+                .unwrap();
+        }
+        InspectorMessageIn::Authorize => {
+            let _ = state.request_authenticate().await;
+        }
     }
 }
 
@@ -146,24 +138,21 @@ async fn on_get_hotkey_options(
     ctx: PluginMessageContext,
 ) {
     // Get the current client
-    let state = plugin
-        .extension::<Arc<VtState>>()
-        .expect("plugin state missing");
+    let state = plugin.extension::<VtState>().expect("plugin state missing");
 
-    let client = { state.client.lock().await.clone() };
-
-    let mut client = match client {
-        Some(value) => value,
-        None => return,
-    };
-
-    // Request the from VT Studio
-    let result = client
-        .send(&HotkeysInCurrentModelRequest {
+    // Request the hotkeys from VT Studio
+    let result = match state
+        .send_message(&HotkeysInCurrentModelRequest {
             ..Default::default()
         })
         .await
-        .unwrap();
+    {
+        Ok(response) => response,
+        Err(err) => {
+            // HANDLE ERROR
+            return;
+        }
+    };
 
     // Send the available options to the inspector
     session
@@ -208,24 +197,22 @@ async fn on_tile_clicked(
         // TODO: Run the action
         println!("TRIGGER HOTKEY");
         // Get the current client
-        let state = plugin
-            .extension::<Arc<VtState>>()
-            .expect("plugin state missing");
+        let state = plugin.extension::<VtState>().expect("plugin state missing");
 
-        let client = { state.client.lock().await.clone() };
-
-        let mut client = match client {
-            Some(value) => value,
-            None => return,
-        };
-
-        // Request the from VT Studio
-        _ = client
-            .send(&HotkeyTriggerRequest {
+        // Request the hotkeys from VT Studio
+        match state
+            .send_message(&HotkeyTriggerRequest {
                 hotkey_id,
                 ..Default::default()
             })
             .await
-            .unwrap();
+        {
+            Ok(response) => response,
+
+            Err(err) => {
+                // HANDLE ERROR
+                return;
+            }
+        };
     }
 }
