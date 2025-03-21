@@ -89,6 +89,7 @@
 
     // Handle messages from plugin
     window.tilepad.onPluginMessage((data) => {
+        console.log(data);
         switch (data.type) {
             case "CONNECTED": {
                 if (data.connected) {

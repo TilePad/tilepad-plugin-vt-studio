@@ -1,16 +1,13 @@
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
-use tilepad_plugin_sdk::{protocol::PluginMessageContext, socket::PluginSessionRef};
-use tokio::sync::Mutex;
+use tilepad_plugin_sdk::{inspector::Inspector, session::PluginSessionHandle, tracing};
+use tokio::{sync::Mutex, time::sleep};
 use vtubestudio::{
     ClientEvent, ClientEventStream,
-    data::{
-        AuthenticationRequest, AuthenticationResponse, AuthenticationTokenRequest,
-        AuthenticationTokenResponse,
-    },
+    data::{ApiStateRequest, AuthenticationRequest, AuthenticationTokenRequest, StatisticsRequest},
 };
 
-use crate::{InspectorMessageOut, Settings};
+use crate::plugin::{InspectorMessageOut, Properties};
 
 #[derive(Default, Debug, Clone, Copy)]
 pub enum VtClientState {
@@ -22,59 +19,78 @@ pub enum VtClientState {
 
 #[derive(Clone)]
 pub struct VtState {
-    inner: Arc<Mutex<VtStateInner>>,
+    inner: Arc<VtStateInner>,
 }
 
 pub struct VtStateInner {
-    client: vtubestudio::Client,
-    session: Option<PluginSessionRef>,
-    inspector_ctx: Option<PluginMessageContext>,
-    state: VtClientState,
+    client: tokio::sync::Mutex<vtubestudio::Client>,
+
+    // Session handle for messaging the server
+    session: parking_lot::Mutex<Option<PluginSessionHandle>>,
+
+    // Inspector context for messaging the inspector
+    inspector: parking_lot::Mutex<Option<Inspector>>,
+
+    // State of the client
+    state: parking_lot::Mutex<VtClientState>,
 }
 
 impl VtState {
     pub fn new(client: vtubestudio::Client) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(VtStateInner {
-                client,
-                session: None,
-                inspector_ctx: None,
+            inner: Arc::new(VtStateInner {
+                client: Mutex::new(client),
+                session: Default::default(),
+                inspector: Default::default(),
                 state: Default::default(),
-            })),
+            }),
         }
     }
 
-    pub async fn get_inspector_ctx(&self) -> Option<PluginMessageContext> {
-        self.inner.lock().await.inspector_ctx.clone()
+    pub fn get_inspector(&self) -> Option<Inspector> {
+        self.inner.inspector.lock().clone()
     }
 
-    pub async fn set_inspector_ctx(&self, inspector_ctx: PluginMessageContext) {
-        self.inner.lock().await.inspector_ctx = Some(inspector_ctx);
+    pub fn set_inspector(&self, inspector: Inspector) {
+        let _ = self.inner.inspector.lock().insert(inspector);
     }
 
-    pub async fn get_plugin_session(&self) -> Option<PluginSessionRef> {
-        self.inner.lock().await.session.clone()
+    pub fn get_plugin_session(&self) -> Option<PluginSessionHandle> {
+        self.inner.session.lock().clone()
     }
 
-    pub async fn set_plugin_session(&self, session: PluginSessionRef) {
-        self.inner.lock().await.session = Some(session);
+    pub fn set_plugin_session(&self, session: PluginSessionHandle) {
+        let _ = self.inner.session.lock().insert(session);
     }
 
     pub async fn authenticate(&self, access_token: String) {
-        let response = self
+        tracing::debug!("authenticating token");
+        let response = match self
             .send_message(&AuthenticationRequest {
                 plugin_name: Cow::Borrowed("Tilepad VT Studio"),
                 plugin_developer: Cow::Borrowed("Jacobtread"),
                 authentication_token: access_token,
             })
             .await
-            .unwrap();
+        {
+            Ok(value) => value,
+            Err(err) => {
+                return;
+            }
+        };
+
         if response.authenticated {
-            self.set_client_state(VtClientState::Authenticated).await;
+            tracing::debug!("authenticated");
+            self.set_client_state(VtClientState::Authenticated);
+        } else {
+            tracing::debug!("failed to authenticate");
+            self.set_client_state(VtClientState::Connected);
         }
     }
 
-    pub async fn request_authenticate(&self) {
+    pub async fn request_authenticate(&self) -> Option<String> {
+        tracing::debug!("requesting authentication token");
+
         let response = match self
             .send_message(&AuthenticationTokenRequest {
                 plugin_name: Cow::Borrowed("Tilepad VT Studio"),
@@ -84,65 +100,50 @@ impl VtState {
             .await
         {
             Ok(value) => value,
-            Err(err) => {
-                eprintln!("Error requesting token: {err:?}");
-                return;
+            Err(cause) => {
+                tracing::error!(?cause, "error requesting token");
+                return None;
             }
         };
 
-        self.set_auth_token(Some(response.authentication_token.clone()))
-            .await;
+        tracing::debug!("obtained authentication token");
 
         self.authenticate(response.authentication_token.clone())
             .await;
+
+        Some(response.authentication_token.clone())
     }
 
-    pub async fn set_auth_token(&self, token: Option<String>) {
-        if let Some(session) = self.get_plugin_session().await {
+    pub fn set_auth_token(&self, token: Option<String>) {
+        if let Some(session) = self.get_plugin_session() {
             // Update token stored in settings
-            _ = session.set_settings(Settings {
+            _ = session.set_properties(Properties {
                 access_token: token.clone(),
             });
         }
     }
 
-    pub async fn get_client_state(&self) -> VtClientState {
-        self.inner.lock().await.state
+    pub fn get_client_state(&self) -> VtClientState {
+        *self.inner.state.lock()
     }
 
-    pub async fn set_client_state(&self, state: VtClientState) {
-        self.inner.lock().await.state = state;
+    pub fn set_client_state(&self, state: VtClientState) {
+        {
+            *self.inner.state.lock() = state;
+        }
 
-        let session = self.get_plugin_session().await;
-        let ctx = self.get_inspector_ctx().await;
+        let inspector = self.get_inspector();
 
-        if let (Some(session), Some(ctx)) = (session, ctx) {
+        if let Some(inspector) = inspector {
             match state {
                 VtClientState::Disconnected => {
-                    _ = session.send_to_inspector(
-                        ctx.clone(),
-                        InspectorMessageOut::Connected { connected: false },
-                    );
-                    _ = session.send_to_inspector(
-                        ctx,
-                        InspectorMessageOut::Authorized { authorized: false },
-                    );
+                    _ = inspector.send(InspectorMessageOut::Connected { connected: false });
                 }
                 VtClientState::Connected => {
-                    _ = session.send_to_inspector(
-                        ctx.clone(),
-                        InspectorMessageOut::Connected { connected: true },
-                    );
-                    _ = session.send_to_inspector(
-                        ctx,
-                        InspectorMessageOut::Authorized { authorized: false },
-                    );
+                    _ = inspector.send(InspectorMessageOut::Connected { connected: true });
                 }
                 VtClientState::Authenticated => {
-                    _ = session.send_to_inspector(
-                        ctx,
-                        InspectorMessageOut::Authorized { authorized: true },
-                    );
+                    _ = inspector.send(InspectorMessageOut::Authorized { authorized: true });
                 }
             }
         }
@@ -152,16 +153,19 @@ impl VtState {
         &self,
         msg: &R,
     ) -> Result<R::Response, vtubestudio::Error> {
-        let mut state = self.inner.lock().await;
-        match state.client.send(msg).await {
+        let result = {
+            let mut client = self.inner.client.lock().await;
+            client.send(msg).await
+        };
+
+        match result {
             Ok(value) => Ok(value),
             Err(err) => {
                 if err.is_unauthenticated_error() {
-                    drop(state);
-                    self.set_auth_token(None).await;
-                    self.set_client_state(VtClientState::Connected).await;
-                    println!("GOT AUTH ERROR");
+                    self.set_auth_token(None);
+                    self.set_client_state(VtClientState::Connected);
                 }
+
                 Err(err)
             }
         }
@@ -170,17 +174,25 @@ impl VtState {
 
 pub async fn process_client_events(state: VtState, mut events: ClientEventStream) {
     while let Some(event) = events.next().await {
-        println!("Got event: {:?}", event);
+        tracing::debug!(?event, "received vt studio client event");
 
         match event {
             // Disconnected from VT studio
             ClientEvent::Disconnected => {
-                state.set_client_state(VtClientState::Disconnected).await;
+                state.set_client_state(VtClientState::Disconnected);
+
+                // Send a state request to hopefully wake up the client
+                tokio::spawn({
+                    let state = state.clone();
+                    async move {
+                        _ = state.send_message(&ApiStateRequest {}).await;
+                    }
+                });
             }
 
             // Socket connected to VT studio
             ClientEvent::Connected => {
-                state.set_client_state(VtClientState::Connected).await;
+                state.set_client_state(VtClientState::Connected);
             }
 
             _ => {}
