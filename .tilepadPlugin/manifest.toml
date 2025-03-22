@@ -7,10 +7,16 @@ description = "Tilepad VTube studio actions"
 
 [category]
 label = "VT Studio"
-icon = "images/navigation.svg"
+icon = "images/vtstudio.png"
 
 [actions.trigger_hotkey]
 label = "Trigger Hotkey"
-icon = "images/switch-folder.svg"
+icon = "images/shortcut.svg"
 description = "Trigger a VTStudio hotkey"
+inspector = "ui/connect.html"
+
+[actions.switch_model]
+label = "Switch Model"
+icon = "images/switch-user.svg"
+description = "Switch the current VTStudio model"
 inspector = "ui/connect.html"
