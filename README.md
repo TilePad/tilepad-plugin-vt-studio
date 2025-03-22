@@ -8,6 +8,8 @@ x
 </td>
 <td>
 <img src="./assets/vtstudio.png" width="250px">
+
+(Not affiliated with VTube Studio)
 </td>
 </tr>
 </table>
