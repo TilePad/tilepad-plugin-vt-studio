@@ -82,48 +82,56 @@
 
         // Request connection state from the plugin
         window.tilepad.sendPluginMessage({
-            type: "GET_CONNECTED"
+            type: "GET_VT_STATE"
         })
     });
+
+    function onDisconnected() {
+        // Show disconnected view
+        setView(createDisconnectedView());
+    }
+
+    function onConnected() {
+        // Set loading view
+        setView(createLoadingView("Checking authorization..."));
+    }
+
+    function onNotAuthorized() {
+        // Show authorize view
+        setView(createAuthorizeView());
+    }
+
+    function onAuthorized() {
+        switch (currentAction) {
+            // Show the hotkey configuration UI
+            case "trigger_hotkey":
+                window.location.href = "./trigger-hotkey.html";
+                break;
+        }
+    }
+
+    const State = {
+        DISCONNECTED: "DISCONNECTED",
+        CONNECTED: "CONNECTED",
+        NOT_AUTHORIZED: "NOT_AUTHORIZED",
+        AUTHORIZED: "AUTHORIZED"
+    }
+
+    const STATE_CALLBACKS = {
+        [State.DISCONNECTED]: onDisconnected,
+        [State.CONNECTED]: onConnected,
+        [State.NOT_AUTHORIZED]: onNotAuthorized,
+        [State.AUTHORIZED]: onAuthorized
+    }
 
 
     // Handle messages from plugin
     window.tilepad.onPluginMessage((data) => {
-        console.log(data);
         switch (data.type) {
-            case "CONNECTED": {
-                if (data.connected) {
-                    // Request the current authorization status
-                    window.tilepad.sendPluginMessage({
-                        type: "GET_AUTHORIZED"
-                    })
-
-                    // Set loading view
-                    setView(createLoadingView("Checking authorization..."));
-                } else {
-                    // Show disconnected view
-                    setView(createDisconnectedView());
-                }
-
-                break;
-            }
-
-            case "AUTHORIZED": {
-                if (data.authorized) {
-
-                    switch (currentAction) {
-                        // Show the hotkey configuration UI
-                        case "trigger_hotkey":
-                            window.location.href = "./trigger-hotkey.html";
-                            break;
-                    }
-
-                } else {
-                    // Show authorize view
-                    setView(createAuthorizeView());
-                }
-
-                break;
+            case "VT_STATE": {
+                const state = data.state;
+                const callback = STATE_CALLBACKS[state];
+                if (callback) callback();
             }
         }
     });

@@ -1,20 +1,23 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
+use serde::Serialize;
 use tilepad_plugin_sdk::{inspector::Inspector, session::PluginSessionHandle, tracing};
 use tokio::{sync::Mutex, time::sleep};
 use vtubestudio::{
     ClientEvent, ClientEventStream,
-    data::{ApiStateRequest, AuthenticationRequest, AuthenticationTokenRequest, StatisticsRequest},
+    data::{ApiStateRequest, AuthenticationRequest, AuthenticationTokenRequest},
 };
 
 use crate::plugin::{InspectorMessageOut, Properties};
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum VtClientState {
     #[default]
     Disconnected,
     Connected,
-    Authenticated,
+    NotAuthorized,
+    Authorized,
 }
 
 #[derive(Clone)]
@@ -51,8 +54,8 @@ impl VtState {
         self.inner.inspector.lock().clone()
     }
 
-    pub fn set_inspector(&self, inspector: Inspector) {
-        let _ = self.inner.inspector.lock().insert(inspector);
+    pub fn set_inspector(&self, inspector: Option<Inspector>) {
+        *self.inner.inspector.lock() = inspector;
     }
 
     pub fn get_plugin_session(&self) -> Option<PluginSessionHandle> {
@@ -81,10 +84,10 @@ impl VtState {
 
         if response.authenticated {
             tracing::debug!("authenticated");
-            self.set_client_state(VtClientState::Authenticated);
+            self.set_client_state(VtClientState::Authorized);
         } else {
             tracing::debug!("failed to authenticate");
-            self.set_client_state(VtClientState::Connected);
+            self.set_client_state(VtClientState::NotAuthorized);
         }
     }
 
@@ -135,17 +138,7 @@ impl VtState {
         let inspector = self.get_inspector();
 
         if let Some(inspector) = inspector {
-            match state {
-                VtClientState::Disconnected => {
-                    _ = inspector.send(InspectorMessageOut::Connected { connected: false });
-                }
-                VtClientState::Connected => {
-                    _ = inspector.send(InspectorMessageOut::Connected { connected: true });
-                }
-                VtClientState::Authenticated => {
-                    _ = inspector.send(InspectorMessageOut::Authorized { authorized: true });
-                }
-            }
+            _ = inspector.send(InspectorMessageOut::VtState { state });
         }
     }
 
@@ -163,7 +156,7 @@ impl VtState {
             Err(err) => {
                 if err.is_unauthenticated_error() {
                     self.set_auth_token(None);
-                    self.set_client_state(VtClientState::Connected);
+                    self.set_client_state(VtClientState::NotAuthorized);
                 }
 
                 Err(err)
@@ -185,7 +178,16 @@ pub async fn process_client_events(state: VtState, mut events: ClientEventStream
                 tokio::spawn({
                     let state = state.clone();
                     async move {
-                        _ = state.send_message(&ApiStateRequest {}).await;
+                        // Poll the server every 5 seconds until we are no longer disconnected
+                        loop {
+                            _ = state.send_message(&ApiStateRequest {}).await;
+                            sleep(Duration::from_secs(5)).await;
+
+                            let state = state.get_client_state();
+                            if !matches!(state, VtClientState::Disconnected) {
+                                break;
+                            }
+                        }
                     }
                 });
             }
@@ -193,6 +195,11 @@ pub async fn process_client_events(state: VtState, mut events: ClientEventStream
             // Socket connected to VT studio
             ClientEvent::Connected => {
                 state.set_client_state(VtClientState::Connected);
+
+                // Request the session properties to trigger authentication
+                if let Some(session) = state.get_plugin_session() {
+                    _ = session.get_properties();
+                }
             }
 
             _ => {}

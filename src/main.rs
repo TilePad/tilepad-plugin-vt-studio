@@ -24,7 +24,9 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("failed to setup tracing");
 
     // Initialize a new client
-    let (client, events) = vtubestudio::Client::builder().build_tungstenite();
+    let (client, events) = vtubestudio::Client::builder()
+        .retry_on_disconnect(false)
+        .build_tungstenite();
     let state = VtState::new(client);
     tokio::spawn(process_client_events(state.clone(), events));
 

@@ -26,7 +26,7 @@
 
         // Request connection state from the plugin
         window.tilepad.sendPluginMessage({
-            type: "GET_CONNECTED"
+            type: "GET_VT_STATE"
         })
     });
 
@@ -39,22 +39,11 @@
                 break;
             }
 
-            case "CONNECTED": {
-                if (!data.connected) {
-                    window.location.href = "./connect.html";
-                    return;
-                }
+            case "VT_STATE": {
+                const state = data.state;
 
-                // Get authorization status
-                window.tilepad.sendPluginMessage({
-                    type: "GET_AUTHORIZED"
-                })
-
-                break;
-            }
-
-            case "AUTHORIZED": {
-                if (!data.authorized) {
+                // No longer ready to perform actions
+                if (state !== "AUTHORIZED") {
                     window.location.href = "./connect.html";
                     return;
                 }

@@ -17,17 +17,15 @@ pub struct Properties {
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageIn {
     GetHotkeyOptions,
-    GetConnected,
-    GetAuthorized,
+    GetVtState,
     Authorize,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageOut {
     HotkeyOptions { options: Vec<HotkeyOption> },
-    Connected { connected: bool },
-    Authorized { authorized: bool },
+    VtState { state: VtClientState },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -55,13 +53,16 @@ impl Plugin for VtPlugin {
         // Don't try authenticating if theres no access token
         let access_token = match properties.access_token {
             Some(value) => value,
-            None => return,
+            None => {
+                self.state.set_client_state(VtClientState::NotAuthorized);
+                return;
+            }
         };
 
         let current_state = self.state.get_client_state();
 
         // Don't try and authenticate if already authenticated
-        if matches!(current_state, VtClientState::Authenticated) {
+        if matches!(current_state, VtClientState::Authorized) {
             return;
         }
 
@@ -69,9 +70,17 @@ impl Plugin for VtPlugin {
         tokio::spawn(async move { state.authenticate(access_token).await });
     }
 
+    fn on_inspector_open(&self, _session: &PluginSessionHandle, inspector: Inspector) {
+        self.state.set_inspector(Some(inspector));
+    }
+
+    fn on_inspector_close(&self, _session: &PluginSessionHandle, _inspector: Inspector) {
+        self.state.set_inspector(None);
+    }
+
     fn on_inspector_message(
         &self,
-        session: &PluginSessionHandle,
+        _session: &PluginSessionHandle,
         inspector: Inspector,
         message: serde_json::Value,
     ) {
@@ -83,26 +92,16 @@ impl Plugin for VtPlugin {
             }
         };
 
-        let state = &self.state;
-        state.set_inspector(inspector.clone());
-
         match msg {
-            InspectorMessageIn::GetConnected => {
-                let current_state = state.get_client_state();
+            InspectorMessageIn::GetVtState => {
+                let current_state = self.state.get_client_state();
 
-                _ = inspector.send(InspectorMessageOut::Connected {
-                    connected: !matches!(current_state, VtClientState::Disconnected),
-                });
-            }
-            InspectorMessageIn::GetAuthorized => {
-                let current_state = state.get_client_state();
-
-                _ = inspector.send(InspectorMessageOut::Authorized {
-                    authorized: matches!(current_state, VtClientState::Authenticated),
+                _ = inspector.send(InspectorMessageOut::VtState {
+                    state: current_state,
                 });
             }
             InspectorMessageIn::Authorize => {
-                let state = state.clone();
+                let state = self.state.clone();
 
                 tokio::spawn(async move {
                     let token = state.request_authenticate().await;
@@ -112,7 +111,7 @@ impl Plugin for VtPlugin {
                 });
             }
             InspectorMessageIn::GetHotkeyOptions => {
-                let state = state.clone();
+                let state = self.state.clone();
 
                 tokio::spawn(async move {
                     // Request the hotkeys from VT Studio
