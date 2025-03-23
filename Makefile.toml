@@ -2,6 +2,23 @@
 # Name of the binary cargo will compile 
 CARGO_BINARY_NAME = "tilepad-plugin-vt-studio"
 
+# ====================== RUNNING DEV ======================    
+
+# Locally run the plugin in debug mode
+[tasks.run-debug]
+env = { RUST_LOG = "debug" }
+command = "cargo"
+args = ["run", "--", "--plugin-id", "com.jacobtread.tilepad.vtstudio", "--connect-url", "ws://localhost:59371/plugins/ws"]
+
+# Locally run the plugin in debug mode (Watching for changes)
+[tasks.watch-debug]
+env = { RUST_LOG = "debug" }
+command = "cargo"
+args = ["watch", "-x", "run -- --plugin-id com.jacobtread.tilepad.vtstudio --connect-url ws://localhost:59371/plugins/ws"]
+
+
+# ====================== BUILDING ALL ======================    
+
 # Build all binaries 
 [tasks.build-all]
 run_task = { name = [
