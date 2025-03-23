@@ -7,15 +7,28 @@
 </head>
 
 <body>
-    <label for="hotkey">Hotkey</label>
-    <select name="hotkey" id="hotkey">
-        <option disabled value="">Loading...</option>
-    </select>
-    <p>Which hotkey will this trigger</p>
+
+    <div>
+        <label for="model">Model</label>
+        <select name="model" id="model">
+            <option disabled value="">Loading...</option>
+        </select>
+        <p>Which model to select hotkeys for</p>
+    </div>
+
+    <div>
+        <label for="hotkey">Hotkey</label>
+        <select name="hotkey" id="hotkey">
+            <option disabled value="">Loading...</option>
+        </select>
+        <p>Which hotkey will this trigger</p>
+    </div>
+
 </body>
 
 <script>
     const hotkey = document.getElementById("hotkey");
+    const model = document.getElementById("model");
 
     let properties;
 
@@ -33,8 +46,19 @@
     // Handle messages from plugin
     window.tilepad.onPluginMessage((data) => {
         switch (data.type) {
+            case "MODEL_OPTIONS": {
+                setSelectOptions(model, data.options, properties.model_id);
+
+                // Request the hotkey options for the selected model
+                if (properties.model_id) {
+                    getModelHotkeys(properties.model_id)
+                }
+
+                break;
+            }
+
             case "HOTKEY_OPTIONS": {
-                addHotkeyOptions(data.options)
+                setSelectOptions(hotkey, data.options, properties.hotkey_id);
                 break;
             }
 
@@ -47,9 +71,9 @@
                     return;
                 }
 
-                // Request the hotkey options
+                // Request the model options
                 window.tilepad.sendPluginMessage({
-                    type: "GET_HOTKEY_OPTIONS"
+                    type: "GET_MODEL_OPTIONS"
                 })
 
                 break;
@@ -60,7 +84,21 @@
     // Request the current properties
     window.tilepad.requestProperties();
 
+    model.onchange = (event) => onChangeModel(event.target.value);
     hotkey.onchange = (event) => onChangeHotkey(event.target.value);
+
+    function onChangeModel(value) {
+        // Reset options to not show stale data
+        setSelectOptions(hotkey, []);
+
+        if (value === "") {
+            window.tilepad.setProperty("model_id", null);
+        } else {
+            // Update the current model and request the model hotkeys
+            window.tilepad.setProperty("model_id", value);
+            getModelHotkeys(value)
+        }
+    }
 
     function onChangeHotkey(value) {
         if (value === "") {
@@ -70,8 +108,17 @@
         }
     }
 
-    function addHotkeyOptions(options) {
-        hotkey.innerHTML = "";
+    function getModelHotkeys(modelId) {
+        // Request the model options
+        window.tilepad.sendPluginMessage({
+            type: "GET_HOTKEY_OPTIONS",
+            model_id: modelId
+        })
+
+    }
+
+    function setSelectOptions(selectEl, options, selectedValue) {
+        selectEl.innerHTML = "";
 
         // Add default option
         {
@@ -80,28 +127,28 @@
             defaultOption.value = "";
             defaultOption.textContent = "None";
             defaultOption.selected = true;
-            hotkey.options.add(defaultOption);
+            selectEl.options.add(defaultOption);
         }
 
         // Add real options
-        for (const hotkeyOption of options) {
-            const option = document.createElement("option");
-            option.value = hotkeyOption.value;
-            option.textContent = hotkeyOption.label;
-            hotkey.options.add(option);
+        for (const option of options) {
+            const optionEl = document.createElement("option");
+            optionEl.value = option.value;
+            optionEl.textContent = option.label;
+            selectEl.options.add(optionEl);
         }
 
-        if (properties.hotkey_id) {
-            const hotkeyIndex = getHotkeyOptionIndex(properties.hotkey_id);
-            if (hotkeyIndex !== -1) {
-                hotkey.selectedIndex = hotkeyIndex;
+        if (selectedValue) {
+            const optionIndex = getOptionIndex(selectEl, selectedValue);
+            if (optionIndex !== -1) {
+                selectEl.selectedIndex = optionIndex;
             }
         }
     }
 
-    function getHotkeyOptionIndex(value) {
-        for (let i = 0; i < hotkey.options.length; i++) {
-            let option = hotkey.options.item(i);
+    function getOptionIndex(selectEl, value) {
+        for (let i = 0; i < selectEl.options.length; i++) {
+            let option = selectEl.options.item(i);
             if (option === null) break;
             if (option.value !== value) continue;
             return i;

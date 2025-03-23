@@ -23,7 +23,7 @@ pub struct Properties {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageIn {
-    GetHotkeyOptions,
+    GetHotkeyOptions { model_id: String },
     GetModelOptions,
     GetVtState,
     Authorize,
@@ -136,13 +136,14 @@ impl Plugin for VtPlugin {
                     }
                 });
             }
-            InspectorMessageIn::GetHotkeyOptions => {
+            InspectorMessageIn::GetHotkeyOptions { model_id } => {
                 let state = self.state.clone();
 
                 spawn_local(async move {
                     // Request the hotkeys from VT Studio
                     let result = match state
                         .send_message(&HotkeysInCurrentModelRequest {
+                            model_id: Some(model_id),
                             ..Default::default()
                         })
                         .await
