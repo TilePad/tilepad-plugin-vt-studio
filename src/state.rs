@@ -1,8 +1,8 @@
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, cell::RefCell, rc::Rc, time::Duration};
 
 use serde::Serialize;
 use tilepad_plugin_sdk::{inspector::Inspector, session::PluginSessionHandle, tracing};
-use tokio::{sync::Mutex, time::sleep};
+use tokio::{sync::Mutex, task::spawn_local, time::sleep};
 use vtubestudio::{
     ClientEvent, ClientEventStream,
     data::{ApiStateRequest, AuthenticationRequest, AuthenticationTokenRequest},
@@ -22,26 +22,25 @@ pub enum VtClientState {
 
 #[derive(Clone)]
 pub struct VtState {
-    inner: Arc<VtStateInner>,
+    inner: Rc<VtStateInner>,
 }
 
 pub struct VtStateInner {
+    /// VTube studio client
     client: tokio::sync::Mutex<vtubestudio::Client>,
+    /// State of the VT client
+    state: RefCell<VtClientState>,
 
-    // Session handle for messaging the server
-    session: parking_lot::Mutex<Option<PluginSessionHandle>>,
-
-    // Inspector context for messaging the inspector
-    inspector: parking_lot::Mutex<Option<Inspector>>,
-
-    // State of the client
-    state: parking_lot::Mutex<VtClientState>,
+    /// Session handle for messaging the server
+    session: RefCell<Option<PluginSessionHandle>>,
+    /// Inspector context for messaging the inspector
+    inspector: RefCell<Option<Inspector>>,
 }
 
 impl VtState {
     pub fn new(client: vtubestudio::Client) -> Self {
         Self {
-            inner: Arc::new(VtStateInner {
+            inner: Rc::new(VtStateInner {
                 client: Mutex::new(client),
                 session: Default::default(),
                 inspector: Default::default(),
@@ -51,19 +50,36 @@ impl VtState {
     }
 
     pub fn get_inspector(&self) -> Option<Inspector> {
-        self.inner.inspector.lock().clone()
+        self.inner.inspector.borrow().clone()
     }
 
     pub fn set_inspector(&self, inspector: Option<Inspector>) {
-        *self.inner.inspector.lock() = inspector;
+        *self.inner.inspector.borrow_mut() = inspector;
     }
 
     pub fn get_plugin_session(&self) -> Option<PluginSessionHandle> {
-        self.inner.session.lock().clone()
+        self.inner.session.borrow().clone()
     }
 
     pub fn set_plugin_session(&self, session: PluginSessionHandle) {
-        let _ = self.inner.session.lock().insert(session);
+        let _ = self.inner.session.borrow_mut().insert(session);
+    }
+
+    /// Get the current state of the VTube Studio client
+    pub fn get_client_state(&self) -> VtClientState {
+        *self.inner.state.borrow()
+    }
+
+    /// Set the current state of the VTube Studio client
+    pub fn set_client_state(&self, state: VtClientState) {
+        {
+            *self.inner.state.borrow_mut() = state;
+        }
+
+        // Report the change in state to the inspector
+        if let Some(inspector) = self.get_inspector() {
+            _ = inspector.send(InspectorMessageOut::VtState { state });
+        }
     }
 
     pub async fn authenticate(&self, access_token: String) {
@@ -118,33 +134,6 @@ impl VtState {
         Some(response.authentication_token.clone())
     }
 
-    pub fn set_auth_token(&self, token: Option<String>) {
-        if let Some(session) = self.get_plugin_session() {
-            // Update token stored in settings
-            _ = session.set_properties(Properties {
-                access_token: token.clone(),
-            });
-        }
-    }
-
-    /// Get the current state of the VTube Studio client
-    pub fn get_client_state(&self) -> VtClientState {
-        *self.inner.state.lock()
-    }
-
-    /// Set the current state of the VTube Studio client
-    pub fn set_client_state(&self, state: VtClientState) {
-        {
-            *self.inner.state.lock() = state;
-        }
-
-        // Report the change in state to the inspector
-        let inspector = self.get_inspector();
-        if let Some(inspector) = inspector {
-            _ = inspector.send(InspectorMessageOut::VtState { state });
-        }
-    }
-
     pub async fn send_message<R: vtubestudio::data::Request>(
         &self,
         msg: &R,
@@ -166,6 +155,15 @@ impl VtState {
             }
         }
     }
+
+    pub fn set_auth_token(&self, token: Option<String>) {
+        if let Some(session) = self.get_plugin_session() {
+            // Update token stored in settings
+            _ = session.set_properties(Properties {
+                access_token: token.clone(),
+            });
+        }
+    }
 }
 
 pub async fn process_client_events(state: VtState, mut events: ClientEventStream) {
@@ -178,7 +176,7 @@ pub async fn process_client_events(state: VtState, mut events: ClientEventStream
                 state.set_client_state(VtClientState::Disconnected);
 
                 // Send a state request to hopefully wake up the client
-                tokio::spawn({
+                spawn_local({
                     let state = state.clone();
                     async move {
                         // Poll the server every 5 seconds until we are no longer disconnected

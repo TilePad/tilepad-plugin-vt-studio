@@ -3,6 +3,7 @@ use tilepad_plugin_sdk::{
     inspector::Inspector, plugin::Plugin, protocol::TileInteractionContext,
     session::PluginSessionHandle, tracing,
 };
+use tokio::task::spawn_local;
 use vtubestudio::data::{HotkeyTriggerRequest, HotkeysInCurrentModelRequest};
 
 use crate::state::{VtClientState, VtState};
@@ -68,7 +69,7 @@ impl Plugin for VtPlugin {
         }
 
         let state = self.state.clone();
-        tokio::spawn(async move { state.authenticate(access_token).await });
+        spawn_local(async move { state.authenticate(access_token).await });
     }
 
     fn on_inspector_open(&self, _session: &PluginSessionHandle, inspector: Inspector) {
@@ -104,7 +105,7 @@ impl Plugin for VtPlugin {
             InspectorMessageIn::Authorize => {
                 let state = self.state.clone();
 
-                tokio::spawn(async move {
+                spawn_local(async move {
                     let token = state.request_authenticate().await;
                     if let Some(token) = token {
                         state.set_auth_token(Some(token));
@@ -114,7 +115,7 @@ impl Plugin for VtPlugin {
             InspectorMessageIn::GetHotkeyOptions => {
                 let state = self.state.clone();
 
-                tokio::spawn(async move {
+                spawn_local(async move {
                     // Request the hotkeys from VT Studio
                     let result = match state
                         .send_message(&HotkeysInCurrentModelRequest {
@@ -170,7 +171,7 @@ impl Plugin for VtPlugin {
                 };
 
                 let state = self.state.clone();
-                tokio::spawn(async move {
+                spawn_local(async move {
                     // Request the hotkeys from VT Studio
                     if let Err(cause) = state
                         .send_message(&HotkeyTriggerRequest {
