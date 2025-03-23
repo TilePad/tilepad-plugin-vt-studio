@@ -77,7 +77,8 @@ impl VtState {
             .await
         {
             Ok(value) => value,
-            Err(err) => {
+            Err(cause) => {
+                tracing::error!(?cause, "failed to authenticate");
                 return;
             }
         };
@@ -126,17 +127,19 @@ impl VtState {
         }
     }
 
+    /// Get the current state of the VTube Studio client
     pub fn get_client_state(&self) -> VtClientState {
         *self.inner.state.lock()
     }
 
+    /// Set the current state of the VTube Studio client
     pub fn set_client_state(&self, state: VtClientState) {
         {
             *self.inner.state.lock() = state;
         }
 
+        // Report the change in state to the inspector
         let inspector = self.get_inspector();
-
         if let Some(inspector) = inspector {
             _ = inspector.send(InspectorMessageOut::VtState { state });
         }

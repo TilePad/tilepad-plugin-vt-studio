@@ -34,8 +34,9 @@ pub struct HotkeyOption {
     value: String,
 }
 
+/// Properties for a "TriggerHotkey" tile
 #[derive(Deserialize)]
-pub struct TileProperties {
+pub struct TriggerHotkeyTileProperties {
     pub hotkey_id: Option<String>,
 }
 
@@ -150,30 +151,46 @@ impl Plugin for VtPlugin {
         ctx: TileInteractionContext,
         properties: serde_json::Value,
     ) {
-        if ctx.action_id.as_str() == "trigger_hotkey" {
-            let properties: TileProperties = match serde_json::from_value(properties) {
-                Ok(value) => value,
-                Err(_) => return,
-            };
+        match ctx.action_id.as_str() {
+            "trigger_hotkey" => {
+                let properties: TriggerHotkeyTileProperties =
+                    match serde_json::from_value(properties) {
+                        Ok(value) => value,
+                        Err(cause) => {
+                            tracing::error!(?cause, "failed to parse trigger_hotkey configuration");
+                            return;
+                        }
+                    };
 
-            let hotkey_id = match properties.hotkey_id {
-                Some(value) => value,
-                None => return,
-            };
+                let hotkey_id = match properties.hotkey_id {
+                    Some(value) => value,
 
-            let state = self.state.clone();
-            tokio::spawn(async move {
-                // Request the hotkeys from VT Studio
-                if let Err(cause) = state
-                    .send_message(&HotkeyTriggerRequest {
-                        hotkey_id,
-                        ..Default::default()
-                    })
-                    .await
-                {
-                    tracing::error!(?cause, "failed to get hotkeys in current model");
-                }
-            });
+                    // No hotkey configured, ignore the tile click
+                    None => return,
+                };
+
+                let state = self.state.clone();
+                tokio::spawn(async move {
+                    // Request the hotkeys from VT Studio
+                    if let Err(cause) = state
+                        .send_message(&HotkeyTriggerRequest {
+                            hotkey_id,
+                            ..Default::default()
+                        })
+                        .await
+                    {
+                        tracing::error!(?cause, "failed to get hotkeys in current model");
+                    }
+                });
+            }
+            "switch_model" => {
+                // TODO: Not implemented
+            }
+
+            action_id => {
+                // Unknown action requested
+                tracing::debug!(?action_id, "unknown tile action requested")
+            }
         }
     }
 }
