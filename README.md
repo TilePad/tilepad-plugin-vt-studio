@@ -25,7 +25,7 @@ x
 - [x] VTube studio connection and authorizing
 - [x] Listing hotkeys
 - [x] Triggering hotkeys as actions
-- [ ] List and switch VTuber models
+- [x] List and switch VTuber models
 - [ ] Moving vtube model
 - [ ] Determine VT Studio plugin server by listening to address instead of using fixed default
 

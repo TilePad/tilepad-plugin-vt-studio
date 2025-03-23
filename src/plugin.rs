@@ -6,41 +6,57 @@ use tilepad_plugin_sdk::{
     session::PluginSessionHandle, tracing,
 };
 use tokio::task::spawn_local;
-use vtubestudio::data::{HotkeyTriggerRequest, HotkeysInCurrentModelRequest};
+use vtubestudio::data::{
+    AvailableModelsRequest, HotkeyTriggerRequest, HotkeysInCurrentModelRequest, ModelLoadRequest,
+};
 
 use crate::state::{VtClientState, VtState};
 
+/// Properties for the plugin itself
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Properties {
     /// Store access token
     pub access_token: Option<String>,
 }
 
+/// Messages from the inspector
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageIn {
     GetHotkeyOptions,
+    GetModelOptions,
     GetVtState,
     Authorize,
 }
 
+/// Messages to the inspector
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InspectorMessageOut {
-    HotkeyOptions { options: Vec<HotkeyOption> },
+    HotkeyOptions { options: Vec<SelectOption> },
+    ModelOptions { options: Vec<SelectOption> },
     VtState { state: VtClientState },
 }
 
+/// Option for a select dropdown menu
 #[derive(Deserialize, Serialize)]
-pub struct HotkeyOption {
-    label: String,
-    value: String,
+pub struct SelectOption {
+    pub label: String,
+    pub value: String,
 }
 
 /// Properties for a "TriggerHotkey" tile
 #[derive(Deserialize)]
 pub struct TriggerHotkeyTileProperties {
+    /// Currently selected option
     pub hotkey_id: Option<String>,
+}
+
+/// Properties for a "TriggerHotkey" tile
+#[derive(Deserialize)]
+pub struct SwitchModelTileProperties {
+    /// Currently selected option
+    pub model_id: Option<String>,
 }
 
 pub struct VtPlugin {
@@ -143,9 +159,35 @@ impl Plugin for VtPlugin {
                         options: result
                             .available_hotkeys
                             .into_iter()
-                            .map(|value| HotkeyOption {
+                            .map(|value| SelectOption {
                                 label: value.name,
                                 value: value.hotkey_id,
+                            })
+                            .collect(),
+                    });
+                });
+            }
+            InspectorMessageIn::GetModelOptions => {
+                let state = self.state.clone();
+
+                spawn_local(async move {
+                    // Request the models from VT Studio
+                    let result = match state.send_message(&AvailableModelsRequest {}).await {
+                        Ok(response) => response,
+                        Err(cause) => {
+                            tracing::error!(?cause, "failed to get hotkeys in current model");
+                            return;
+                        }
+                    };
+
+                    // Send the available options to the inspector
+                    _ = inspector.send(InspectorMessageOut::ModelOptions {
+                        options: result
+                            .available_models
+                            .into_iter()
+                            .map(|value| SelectOption {
+                                label: value.model_name,
+                                value: value.model_id,
                             })
                             .collect(),
                     });
@@ -161,6 +203,7 @@ impl Plugin for VtPlugin {
         properties: serde_json::Value,
     ) {
         match ctx.action_id.as_str() {
+            // Trigger a hotkey
             "trigger_hotkey" => {
                 let properties: TriggerHotkeyTileProperties =
                     match serde_json::from_value(properties) {
@@ -173,7 +216,6 @@ impl Plugin for VtPlugin {
 
                 let hotkey_id = match properties.hotkey_id {
                     Some(value) => value,
-
                     // No hotkey configured, ignore the tile click
                     None => return,
                 };
@@ -188,12 +230,36 @@ impl Plugin for VtPlugin {
                         })
                         .await
                     {
-                        tracing::error!(?cause, "failed to get hotkeys in current model");
+                        tracing::error!(?cause, "failed to trigger hotkey");
                     }
                 });
             }
+
+            // Switch the current model
             "switch_model" => {
-                // TODO: Not implemented
+                let properties: SwitchModelTileProperties = match serde_json::from_value(properties)
+                {
+                    Ok(value) => value,
+                    Err(cause) => {
+                        tracing::error!(?cause, "failed to parse switch_model configuration");
+                        return;
+                    }
+                };
+
+                let model_id = match properties.model_id {
+                    Some(value) => value,
+
+                    // No hotkey configured, ignore the tile click
+                    None => return,
+                };
+
+                let state = self.state.clone();
+                spawn_local(async move {
+                    // Request the hotkeys from VT Studio
+                    if let Err(cause) = state.send_message(&ModelLoadRequest { model_id }).await {
+                        tracing::error!(?cause, "failed to load model");
+                    }
+                });
             }
 
             action_id => {

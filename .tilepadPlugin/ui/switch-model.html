@@ -7,15 +7,15 @@
 </head>
 
 <body>
-    <label for="hotkey">Hotkey</label>
-    <select name="hotkey" id="hotkey">
+    <label for="model">Model</label>
+    <select name="model" id="model">
         <option disabled value="">Loading...</option>
     </select>
-    <p>Which hotkey will this trigger</p>
+    <p>Which model will this switch to</p>
 </body>
 
 <script>
-    const hotkey = document.getElementById("hotkey");
+    const model = document.getElementById("model");
 
     let properties;
 
@@ -33,8 +33,8 @@
     // Handle messages from plugin
     window.tilepad.onPluginMessage((data) => {
         switch (data.type) {
-            case "HOTKEY_OPTIONS": {
-                addHotkeyOptions(data.options)
+            case "MODEL_OPTIONS": {
+                addModelOptions(data.options)
                 break;
             }
 
@@ -47,9 +47,9 @@
                     return;
                 }
 
-                // Request the hotkey options
+                // Request the model options
                 window.tilepad.sendPluginMessage({
-                    type: "GET_HOTKEY_OPTIONS"
+                    type: "GET_MODEL_OPTIONS"
                 })
 
                 break;
@@ -60,18 +60,18 @@
     // Request the current properties
     window.tilepad.requestProperties();
 
-    hotkey.onchange = (event) => onChangeHotkey(event.target.value);
+    model.onchange = (event) => onChangeModel(event.target.value);
 
-    function onChangeHotkey(value) {
+    function onChangeModel(value) {
         if (value === "") {
-            window.tilepad.setProperty("hotkey_id", null);
+            window.tilepad.setProperty("model_id", null);
         } else {
-            window.tilepad.setProperty("hotkey_id", value);
+            window.tilepad.setProperty("model_id", value);
         }
     }
 
-    function addHotkeyOptions(options) {
-        hotkey.innerHTML = "";
+    function addModelOptions(options) {
+        model.innerHTML = "";
 
         // Add default option
         {
@@ -80,28 +80,28 @@
             defaultOption.value = "";
             defaultOption.textContent = "None";
             defaultOption.selected = true;
-            hotkey.options.add(defaultOption);
+            model.options.add(defaultOption);
         }
 
         // Add real options
-        for (const hotkeyOption of options) {
-            const option = document.createElement("option");
-            option.value = hotkeyOption.value;
-            option.textContent = hotkeyOption.label;
-            hotkey.options.add(option);
+        for (const option of options) {
+            const optionEl = document.createElement("option");
+            optionEl.value = option.value;
+            optionEl.textContent = option.label;
+            model.options.add(optionEl);
         }
 
-        if (properties.hotkey_id) {
-            const hotkeyIndex = getHotkeyOptionIndex(properties.hotkey_id);
-            if (hotkeyIndex !== -1) {
-                hotkey.selectedIndex = hotkeyIndex;
+        if (properties.model_id) {
+            const optionIndex = getModelOptionIndex(properties.model_id);
+            if (optionIndex !== -1) {
+                model.selectedIndex = optionIndex;
             }
         }
     }
 
-    function getHotkeyOptionIndex(value) {
-        for (let i = 0; i < hotkey.options.length; i++) {
-            let option = hotkey.options.item(i);
+    function getModelOptionIndex(value) {
+        for (let i = 0; i < model.options.length; i++) {
+            let option = model.options.item(i);
             if (option === null) break;
             if (option.value !== value) continue;
             return i;

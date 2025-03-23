@@ -4,7 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
@@ -12,7 +11,6 @@
 </body>
 
 <script>
-
     let currentAction = null;
 
     function setView(content) {
@@ -103,9 +101,14 @@
 
     function onAuthorized() {
         switch (currentAction) {
-            // Show the hotkey configuration UI
+            // Show hotkey configuration UI
             case "trigger_hotkey":
                 window.location.href = "./trigger-hotkey.html";
+                break;
+
+            // Show model configuration UI
+            case "switch_model":
+                window.location.href = "./switch-model.html";
                 break;
         }
     }
