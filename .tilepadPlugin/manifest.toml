@@ -9,6 +9,26 @@ description = "Tilepad VTube studio actions"
 label = "VT Studio"
 icon = "images/vtstudio.png"
 
+[[bin.native]]
+os = "windows"
+arch = "x64"
+path = "bin/plugin-windows-x64.exe"
+
+[[bin.native]]
+os = "windows"
+arch = "x86"
+path = "bin/plugin-windows-x86.exe"
+
+[[bin.native]]
+os = "linux"
+arch = "x64"
+path = "bin/plugin-linux-x64"
+
+[[bin.native]]
+os = "linux"
+arch = "x86"
+path = "bin/plugin-linux-x86"
+
 [actions.trigger_hotkey]
 label = "Trigger Hotkey"
 icon = "images/shortcut.svg"
