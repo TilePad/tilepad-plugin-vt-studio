@@ -20,12 +20,7 @@ pub enum VtClientState {
     Authorized,
 }
 
-#[derive(Clone)]
 pub struct VtState {
-    inner: Rc<VtStateInner>,
-}
-
-pub struct VtStateInner {
     /// VTube studio client
     client: tokio::sync::Mutex<vtubestudio::Client>,
     /// State of the VT client
@@ -40,40 +35,38 @@ pub struct VtStateInner {
 impl VtState {
     pub fn new(client: vtubestudio::Client) -> Self {
         Self {
-            inner: Rc::new(VtStateInner {
-                client: Mutex::new(client),
-                session: Default::default(),
-                inspector: Default::default(),
-                state: Default::default(),
-            }),
+            client: Mutex::new(client),
+            session: Default::default(),
+            inspector: Default::default(),
+            state: Default::default(),
         }
     }
 
     pub fn get_inspector(&self) -> Option<Inspector> {
-        self.inner.inspector.borrow().clone()
+        self.inspector.borrow().clone()
     }
 
     pub fn set_inspector(&self, inspector: Option<Inspector>) {
-        *self.inner.inspector.borrow_mut() = inspector;
+        *self.inspector.borrow_mut() = inspector;
     }
 
     pub fn get_plugin_session(&self) -> Option<PluginSessionHandle> {
-        self.inner.session.borrow().clone()
+        self.session.borrow().clone()
     }
 
     pub fn set_plugin_session(&self, session: PluginSessionHandle) {
-        let _ = self.inner.session.borrow_mut().insert(session);
+        let _ = self.session.borrow_mut().insert(session);
     }
 
     /// Get the current state of the VTube Studio client
     pub fn get_client_state(&self) -> VtClientState {
-        *self.inner.state.borrow()
+        *self.state.borrow()
     }
 
     /// Set the current state of the VTube Studio client
     pub fn set_client_state(&self, state: VtClientState) {
         {
-            *self.inner.state.borrow_mut() = state;
+            *self.state.borrow_mut() = state;
         }
 
         // Report the change in state to the inspector
@@ -139,7 +132,7 @@ impl VtState {
         msg: &R,
     ) -> Result<R::Response, vtubestudio::Error> {
         let result = {
-            let mut client = self.inner.client.lock().await;
+            let mut client = self.client.lock().await;
             client.send(msg).await
         };
 
@@ -166,7 +159,21 @@ impl VtState {
     }
 }
 
-pub async fn process_client_events(state: VtState, mut events: ClientEventStream) {
+/// Task to ping the client in the background every 5 seconds
+pub async fn ping_till_connected(state: Rc<VtState>) {
+    // Poll the server every 5 seconds until we are no longer disconnected
+    loop {
+        _ = state.send_message(&ApiStateRequest {}).await;
+        sleep(Duration::from_secs(5)).await;
+
+        let state = state.get_client_state();
+        if !matches!(state, VtClientState::Disconnected) {
+            break;
+        }
+    }
+}
+
+pub async fn process_client_events(state: Rc<VtState>, mut events: ClientEventStream) {
     while let Some(event) = events.next().await {
         tracing::debug!(?event, "received vt studio client event");
 
@@ -176,21 +183,7 @@ pub async fn process_client_events(state: VtState, mut events: ClientEventStream
                 state.set_client_state(VtClientState::Disconnected);
 
                 // Send a state request to hopefully wake up the client
-                spawn_local({
-                    let state = state.clone();
-                    async move {
-                        // Poll the server every 5 seconds until we are no longer disconnected
-                        loop {
-                            _ = state.send_message(&ApiStateRequest {}).await;
-                            sleep(Duration::from_secs(5)).await;
-
-                            let state = state.get_client_state();
-                            if !matches!(state, VtClientState::Disconnected) {
-                                break;
-                            }
-                        }
-                    }
-                });
+                spawn_local(ping_till_connected(state.clone()));
             }
 
             // Socket connected to VT studio

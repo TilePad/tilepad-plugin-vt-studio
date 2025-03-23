@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use serde::{Deserialize, Serialize};
 use tilepad_plugin_sdk::{
     inspector::Inspector, plugin::Plugin, protocol::TileInteractionContext,
@@ -42,7 +44,13 @@ pub struct TriggerHotkeyTileProperties {
 }
 
 pub struct VtPlugin {
-    pub state: VtState,
+    state: Rc<VtState>,
+}
+
+impl VtPlugin {
+    pub fn new(state: Rc<VtState>) -> Self {
+        Self { state }
+    }
 }
 
 impl Plugin for VtPlugin {

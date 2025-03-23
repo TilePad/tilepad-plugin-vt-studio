@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use plugin::VtPlugin;
 use state::{VtState, process_client_events};
 use tilepad_plugin_sdk::{
@@ -33,10 +35,8 @@ async fn main() {
                 .retry_on_disconnect(false)
                 .build_tungstenite();
 
-            let state = VtState::new(client);
-            let plugin = VtPlugin {
-                state: state.clone(),
-            };
+            let state = Rc::new(VtState::new(client));
+            let plugin = VtPlugin::new(state.clone());
 
             spawn_local(process_client_events(state, events));
 
