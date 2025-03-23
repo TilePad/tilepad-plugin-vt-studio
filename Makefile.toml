@@ -1,6 +1,14 @@
 [env]
 # Name of the binary cargo will compile 
-CARGO_BINARY_NAME = "tilepad-plugin-vt-studio"
+CARGO_BINARY_NAME = "tilepad-plugin-vt-studio"  
+
+# ====================== BUNDLING ======================    
+
+[tasks.bundle]
+command = "tilepad"
+args = ["bundle"]
+dependencies = ["build-all"]
+
 
 # ====================== RUNNING DEV ======================    
 
