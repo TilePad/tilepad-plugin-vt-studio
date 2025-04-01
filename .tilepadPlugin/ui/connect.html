@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -23,8 +24,10 @@
         const container = document.createElement("div");
         const title = document.createElement("h1");
         title.textContent = "Loading..."
+        title.classList.add("title")
         const text = document.createElement("p");
         text.textContent = message;
+        text.classList.add("text")
 
         container.appendChild(title);
         container.appendChild(text);
@@ -36,8 +39,10 @@
         const container = document.createElement("div");
         const title = document.createElement("h1");
         title.textContent = "Not Connected"
+        title.classList.add("title")
         const text = document.createElement("p");
         text.textContent = "Ensure VTube Studio is running and that plugins are enabled"
+        text.classList.add("text")
 
         container.appendChild(title);
         container.appendChild(text);
@@ -49,8 +54,10 @@
         const container = document.createElement("div");
         const title = document.createElement("h1");
         title.textContent = "Tilepad VTube Studio"
+        title.classList.add("title")
         const text = document.createElement("p");
         text.textContent = "You must authorize tilepad to access VTube studio, ensure VTube Studio is running"
+        text.classList.add("text")
         const button = document.createElement("button");
         button.textContent = "Authorize"
         button.onclick = () => {
@@ -62,6 +69,7 @@
                 type: "AUTHORIZE"
             })
         }
+        button.classList.add("tile-button")
 
         container.appendChild(title);
         container.appendChild(text);
