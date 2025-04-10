@@ -65,7 +65,7 @@
             setView(createLoadingView("Waiting for authorization..."));
 
             // Request that the plugin authorize
-            window.tilepad.sendPluginMessage({
+            tilepad.plugin.send({
                 type: "AUTHORIZE"
             })
         }
@@ -81,16 +81,18 @@
     // Set initial loading state
     setView(createLoadingView("Connecting..."));
 
-    // Handle properties received
-    window.tilepad.onProperties((newProperties, ctx) => {
-        properties = newProperties;
-        currentAction = ctx.actionId;
+    // Request the current tile
+    tilepad.tile.getTile()
+        // Handle properties received
+        .then((tile) => {
+            properties = tile.properties;
+            currentAction = tile.actionId;
 
-        // Request connection state from the plugin
-        window.tilepad.sendPluginMessage({
-            type: "GET_VT_STATE"
-        })
-    });
+            // Request connection state from the plugin
+            tilepad.plugin.send({
+                type: "GET_VT_STATE"
+            })
+        });
 
     function onDisconnected() {
         // Show disconnected view
@@ -137,7 +139,7 @@
 
 
     // Handle messages from plugin
-    window.tilepad.onPluginMessage((data) => {
+    tilepad.plugin.onMessage((data) => {
         switch (data.type) {
             case "VT_STATE": {
                 const state = data.state;
@@ -147,8 +149,7 @@
         }
     });
 
-    // Request the current properties
-    window.tilepad.requestProperties();
+
 </script>
 
 </html>

@@ -32,19 +32,21 @@
 
     let properties;
 
-    // Handle properties received
-    window.tilepad.onProperties((newProperties) => {
-        properties = newProperties;
+    // Request the current properties
+    tilepad.tile.getProperties()
+        // Handle properties received
+        .then((newProperties) => {
+            properties = newProperties;
 
-        // Request connection state from the plugin
-        window.tilepad.sendPluginMessage({
-            type: "GET_VT_STATE"
-        })
-    });
+            // Request connection state from the plugin
+            tilepad.plugin.send({
+                type: "GET_VT_STATE"
+            })
+        });
 
 
     // Handle messages from plugin
-    window.tilepad.onPluginMessage((data) => {
+    tilepad.plugin.onMessage((data) => {
         switch (data.type) {
             case "MODEL_OPTIONS": {
                 setSelectOptions(model, data.options, properties.model_id);
@@ -72,7 +74,7 @@
                 }
 
                 // Request the model options
-                window.tilepad.sendPluginMessage({
+                tilepad.plugin.send({
                     type: "GET_MODEL_OPTIONS"
                 })
 
@@ -81,8 +83,6 @@
         }
     });
 
-    // Request the current properties
-    window.tilepad.requestProperties();
 
     model.onchange = (event) => onChangeModel(event.target.value);
     hotkey.onchange = (event) => onChangeHotkey(event.target.value);
@@ -92,29 +92,28 @@
         setSelectOptions(hotkey, []);
 
         if (value === "") {
-            window.tilepad.setProperty("model_id", null);
+            tilepad.tile.setProperty("model_id", null);
         } else {
             // Update the current model and request the model hotkeys
-            window.tilepad.setProperty("model_id", value);
+            tilepad.tile.setProperty("model_id", value);
             getModelHotkeys(value)
         }
     }
 
     function onChangeHotkey(value) {
         if (value === "") {
-            window.tilepad.setProperty("hotkey_id", null);
+            tilepad.tile.setProperty("hotkey_id", null);
         } else {
-            window.tilepad.setProperty("hotkey_id", value);
+            tilepad.tile.setProperty("hotkey_id", value);
         }
     }
 
     function getModelHotkeys(modelId) {
         // Request the model options
-        window.tilepad.sendPluginMessage({
+        tilepad.plugin.send({
             type: "GET_HOTKEY_OPTIONS",
             model_id: modelId
         })
-
     }
 
     function setSelectOptions(selectEl, options, selectedValue) {

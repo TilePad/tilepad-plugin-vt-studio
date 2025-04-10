@@ -21,19 +21,21 @@
 
     let properties;
 
-    // Handle properties received
-    window.tilepad.onProperties((newProperties) => {
-        properties = newProperties;
+    // Request the current properties
+    tilepad.tile.getProperties()
+        // Handle properties received
+        .then((newProperties) => {
+            properties = newProperties;
 
-        // Request connection state from the plugin
-        window.tilepad.sendPluginMessage({
-            type: "GET_VT_STATE"
-        })
-    });
+            // Request connection state from the plugin
+            tilepad.plugin.send({
+                type: "GET_VT_STATE"
+            })
+        });
 
 
     // Handle messages from plugin
-    window.tilepad.onPluginMessage((data) => {
+    tilepad.plugin.onMessage((data) => {
         switch (data.type) {
             case "MODEL_OPTIONS": {
                 addModelOptions(data.options)
@@ -50,7 +52,7 @@
                 }
 
                 // Request the model options
-                window.tilepad.sendPluginMessage({
+                tilepad.plugin.send({
                     type: "GET_MODEL_OPTIONS"
                 })
 
@@ -59,16 +61,14 @@
         }
     });
 
-    // Request the current properties
-    window.tilepad.requestProperties();
 
     model.onchange = (event) => onChangeModel(event.target.value);
 
     function onChangeModel(value) {
         if (value === "") {
-            window.tilepad.setProperty("model_id", null);
+            tilepad.tile.setProperty("model_id", null);
         } else {
-            window.tilepad.setProperty("model_id", value);
+            tilepad.tile.setProperty("model_id", value);
         }
     }
 
