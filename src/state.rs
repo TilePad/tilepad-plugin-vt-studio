@@ -192,7 +192,7 @@ pub async fn process_client_events(state: Rc<VtState>, mut events: ClientEventSt
 
                 // Request the session properties to trigger authentication
                 if let Some(session) = state.get_plugin_session() {
-                    _ = session.get_properties();
+                    _ = session.request_properties();
                 }
             }
 
