@@ -1,7 +1,7 @@
 [plugin]
 id = "com.jacobtread.tilepad.vtstudio"
 name = "VTube Studio"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["Jacobtread"]
 description = "Tilepad VTube studio actions"
 
