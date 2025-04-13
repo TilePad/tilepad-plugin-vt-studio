@@ -60,12 +60,19 @@ jobs:
       - name: Build for ${{ matrix.target }}
         run: cargo build --release --target ${{ matrix.target }}
 
+      # Rename the binary to the correct name
+      - name: Rename the binary
+        run: |
+          mkdir output
+          cp target/${{ matrix.target }}/release/${{ matrix.outfile }} output/${{ matrix.filename }}
+        shell: bash
+
       # Upload the built binary as an artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.filename }}
-          path: target/${{ matrix.target }}/release/${{ matrix.outfile }}
+          path: output/${{ matrix.filename }}
 
   bundle:
     name: Bundle Plugin
