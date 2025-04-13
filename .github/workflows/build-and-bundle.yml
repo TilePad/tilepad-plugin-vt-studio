@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.filename }}
-          path: target/${{ matrix.target }}/release/${{ matrix.outfile }} output/${{ matrix.filename }}
+          path: target/${{ matrix.target }}/release/${{ matrix.outfile }}
 
   bundle:
     name: Bundle Plugin
