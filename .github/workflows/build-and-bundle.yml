@@ -119,8 +119,6 @@ jobs:
         if: github.event_name == 'push'
         with:
           draft: true
-          files: |
-            plugin.tilepadPlugin
-            .tilepadPlugin/manifest.toml
+          files: plugin.tilepadPlugin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
