@@ -4,7 +4,7 @@ on:
   # Trigger when a tag is pushed for a release
   push:
     tags:
-      - "v*" # This will trigger when a tag like v1.0.0 is pushed
+      - "*.*.*" # This will trigger when a tag like v1.0.0 is pushed
   # Manual trigger for creating an artifact (button in the UI)
   workflow_dispatch:
 
