@@ -8,6 +8,10 @@ on:
   # Manual trigger for creating an artifact (button in the UI)
   workflow_dispatch:
 
+permissions:
+  packages: write
+  contents: write
+
 jobs:
   build:
     name: Build plugin releases
