@@ -77,12 +77,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.97"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
-
-[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -417,12 +411,6 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
-
-[[package]]
-name = "hashbrown"
-version = "0.14.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 
 [[package]]
 name = "heck"
@@ -831,15 +819,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "signal-hook-registry"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9e9e0b4211b72e7b8b6e85c807d36c212bdb33ea8587f7569562a84df5465b1"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -952,20 +931,18 @@ dependencies = [
 
 [[package]]
 name = "tilepad-plugin-sdk"
-version = "0.1.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50690bb501cb35b72b2e2da15372e876325cc346a55f38bb36ab429579d460f4"
+checksum = "b2f661cee150d19fdaae9675c086ef5f6c702472468010726ad9206f0de9d893"
 dependencies = [
- "anyhow",
  "clap",
- "futures",
+ "futures-util",
  "parking_lot",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
  "tokio-tungstenite 0.26.2",
- "tokio-util",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -975,7 +952,6 @@ dependencies = [
 name = "tilepad-plugin-vt-studio"
 version = "0.1.0"
 dependencies = [
- "parking_lot",
  "serde",
  "serde_json",
  "tilepad-plugin-sdk",
@@ -993,9 +969,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.52.0",
@@ -1061,12 +1035,8 @@ checksum = "6b9590b93e6fcc1739458317cccd391ad3955e2bde8913edf6f95f9e65a8f034"
 dependencies = [
  "bytes",
  "futures-core",
- "futures-io",
  "futures-sink",
- "futures-util",
- "hashbrown",
  "pin-project-lite",
- "slab",
  "tokio",
 ]
 

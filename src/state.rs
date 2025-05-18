@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::RefCell, rc::Rc, time::Duration};
 
 use serde::Serialize;
-use tilepad_plugin_sdk::{inspector::Inspector, session::PluginSessionHandle, tracing};
+use tilepad_plugin_sdk::{Inspector, PluginSessionHandle, tracing};
 use tokio::{sync::Mutex, task::spawn_local, time::sleep};
 use vtubestudio::{
     ClientEvent, ClientEventStream,

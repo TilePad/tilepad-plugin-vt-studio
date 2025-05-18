@@ -1,10 +1,7 @@
 use std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
-use tilepad_plugin_sdk::{
-    inspector::Inspector, plugin::Plugin, protocol::TileInteractionContext,
-    session::PluginSessionHandle, tracing,
-};
+use tilepad_plugin_sdk::{Inspector, Plugin, PluginSessionHandle, TileInteractionContext, tracing};
 use tokio::task::spawn_local;
 use vtubestudio::data::{
     AvailableModelsRequest, HotkeyTriggerRequest, HotkeysInCurrentModelRequest, ModelLoadRequest,
@@ -70,7 +67,7 @@ impl VtPlugin {
 }
 
 impl Plugin for VtPlugin {
-    fn on_properties(&self, session: &PluginSessionHandle, properties: serde_json::Value) {
+    fn on_properties(&mut self, session: &PluginSessionHandle, properties: serde_json::Value) {
         self.state.set_plugin_session(session.clone());
 
         let properties: Properties =
@@ -96,16 +93,16 @@ impl Plugin for VtPlugin {
         spawn_local(async move { state.authenticate(access_token).await });
     }
 
-    fn on_inspector_open(&self, _session: &PluginSessionHandle, inspector: Inspector) {
+    fn on_inspector_open(&mut self, _session: &PluginSessionHandle, inspector: Inspector) {
         self.state.set_inspector(Some(inspector));
     }
 
-    fn on_inspector_close(&self, _session: &PluginSessionHandle, _inspector: Inspector) {
+    fn on_inspector_close(&mut self, _session: &PluginSessionHandle, _inspector: Inspector) {
         self.state.set_inspector(None);
     }
 
     fn on_inspector_message(
-        &self,
+        &mut self,
         _session: &PluginSessionHandle,
         inspector: Inspector,
         message: serde_json::Value,
@@ -198,7 +195,7 @@ impl Plugin for VtPlugin {
     }
 
     fn on_tile_clicked(
-        &self,
+        &mut self,
         _session: &PluginSessionHandle,
         ctx: TileInteractionContext,
         properties: serde_json::Value,
