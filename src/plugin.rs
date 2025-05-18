@@ -7,53 +7,17 @@ use vtubestudio::data::{
     AvailableModelsRequest, HotkeyTriggerRequest, HotkeysInCurrentModelRequest, ModelLoadRequest,
 };
 
-use crate::state::{VtClientState, VtState};
+use crate::{
+    action::Action,
+    messages::{InspectorMessageIn, InspectorMessageOut, SelectOption},
+    state::{VtClientState, VtState},
+};
 
 /// Properties for the plugin itself
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Properties {
     /// Store access token
     pub access_token: Option<String>,
-}
-
-/// Messages from the inspector
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum InspectorMessageIn {
-    GetHotkeyOptions { model_id: String },
-    GetModelOptions,
-    GetVtState,
-    Authorize,
-}
-
-/// Messages to the inspector
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum InspectorMessageOut {
-    HotkeyOptions { options: Vec<SelectOption> },
-    ModelOptions { options: Vec<SelectOption> },
-    VtState { state: VtClientState },
-}
-
-/// Option for a select dropdown menu
-#[derive(Deserialize, Serialize)]
-pub struct SelectOption {
-    pub label: String,
-    pub value: String,
-}
-
-/// Properties for a "TriggerHotkey" tile
-#[derive(Deserialize)]
-pub struct TriggerHotkeyTileProperties {
-    /// Currently selected option
-    pub hotkey_id: Option<String>,
-}
-
-/// Properties for a "TriggerHotkey" tile
-#[derive(Deserialize)]
-pub struct SwitchModelTileProperties {
-    /// Currently selected option
-    pub model_id: Option<String>,
 }
 
 pub struct VtPlugin {
@@ -200,18 +164,21 @@ impl Plugin for VtPlugin {
         ctx: TileInteractionContext,
         properties: serde_json::Value,
     ) {
-        match ctx.action_id.as_str() {
-            // Trigger a hotkey
-            "trigger_hotkey" => {
-                let properties: TriggerHotkeyTileProperties =
-                    match serde_json::from_value(properties) {
-                        Ok(value) => value,
-                        Err(cause) => {
-                            tracing::error!(?cause, "failed to parse trigger_hotkey configuration");
-                            return;
-                        }
-                    };
+        let action_id = ctx.action_id.as_str();
+        let action = match Action::from_action(action_id, properties) {
+            Some(Ok(value)) => value,
+            Some(Err(cause)) => {
+                tracing::error!(?cause, ?action_id, "failed to deserialize action");
+                return;
+            }
+            None => {
+                tracing::debug!(?action_id, "unknown tile action requested");
+                return;
+            }
+        };
 
+        match action {
+            Action::TriggerHotkey(properties) => {
                 let hotkey_id = match properties.hotkey_id {
                     Some(value) => value,
                     // No hotkey configured, ignore the tile click
@@ -232,18 +199,7 @@ impl Plugin for VtPlugin {
                     }
                 });
             }
-
-            // Switch the current model
-            "switch_model" => {
-                let properties: SwitchModelTileProperties = match serde_json::from_value(properties)
-                {
-                    Ok(value) => value,
-                    Err(cause) => {
-                        tracing::error!(?cause, "failed to parse switch_model configuration");
-                        return;
-                    }
-                };
-
+            Action::SwitchModel(properties) => {
                 let model_id = match properties.model_id {
                     Some(value) => value,
 
@@ -258,11 +214,6 @@ impl Plugin for VtPlugin {
                         tracing::error!(?cause, "failed to load model");
                     }
                 });
-            }
-
-            action_id => {
-                // Unknown action requested
-                tracing::debug!(?action_id, "unknown tile action requested")
             }
         }
     }

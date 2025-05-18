@@ -4,8 +4,10 @@ use std::rc::Rc;
 use tilepad_plugin_sdk::{setup_tracing, start_plugin};
 use tokio::task::{LocalSet, spawn_local};
 
-pub mod plugin;
-pub mod state;
+mod action;
+mod messages;
+mod plugin;
+mod state;
 
 fn main() {
     let local_set = LocalSet::new();

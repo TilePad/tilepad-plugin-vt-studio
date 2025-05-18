@@ -8,7 +8,7 @@ use vtubestudio::{
     data::{ApiStateRequest, AuthenticationRequest, AuthenticationTokenRequest},
 };
 
-use crate::plugin::{InspectorMessageOut, Properties};
+use crate::{messages::InspectorMessageOut, plugin::Properties};
 
 #[derive(Default, Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
