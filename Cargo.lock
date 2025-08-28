@@ -964,6 +964,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tilepad-plugin"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tilepad-plugin-sdk",
+ "tokio",
+ "vtubestudio",
+]
+
+[[package]]
 name = "tilepad-plugin-sdk"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -980,17 +991,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
-]
-
-[[package]]
-name = "tilepad-plugin-vt-studio"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tilepad-plugin-sdk",
- "tokio",
- "vtubestudio",
 ]
 
 [[package]]
