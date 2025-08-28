@@ -1,4 +1,5 @@
 {
+    "$schema": "https://tilepad.pages.dev/schemas/0.9.0/plugins.json",
     "plugin": {
         "id": "com.jacobtread.tilepad.vtstudio",
         "name": "VTube Studio",
