@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 # Plugin SDK
-tilepad-plugin-sdk = "0.4.0"
+tilepad-plugin-sdk = "0.6.0"
 
 # VTube studio socket library
 vtubestudio = "0.9.0"
