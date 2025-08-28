@@ -3,9 +3,7 @@
         "id": "com.jacobtread.tilepad.vtstudio",
         "name": "VTube Studio",
         "version": "0.1.0",
-        "authors": [
-            "Jacobtread"
-        ],
+        "authors": ["Jacobtread"],
         "description": "Tilepad VTube studio actions"
     },
     "category": {
@@ -33,6 +31,16 @@
                 "os": "linux",
                 "arch": "x86",
                 "path": "bin/plugin-linux-x86"
+            },
+            {
+                "os": "macos",
+                "arch": "arm64",
+                "path": "bin/plugin-macos-arm64"
+            },
+            {
+                "os": "macos",
+                "arch": "x64",
+                "path": "bin/plugin-macos-x64"
             }
         ]
     },
