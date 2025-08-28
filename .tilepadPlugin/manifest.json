@@ -5,7 +5,8 @@
         "name": "VTube Studio",
         "version": "0.1.0",
         "authors": ["Jacobtread"],
-        "description": "Tilepad VTube studio actions"
+        "description": "Tilepad VTube studio actions",
+        "icon": "images/vtstudio-icon.png"
     },
     "category": {
         "label": "VT Studio",
